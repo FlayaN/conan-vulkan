@@ -5,12 +5,12 @@ from conans import ConanFile, CMake, tools
 import os
 
 
-class LibnameConan(ConanFile):
-    name = "libname"
-    version = "0.0.0"
-    description = "Keep it short"
-    url = "https://github.com/bincrafters/conan-libname"
-    homepage = "https://github.com/original_author/original_lib"
+class VulkanConan(ConanFile):
+    name = "vulkan"
+    version = "1.1.73.0"
+    description = "Vulkan is a new generation graphics and compute API that provides high-efficiency, cross-platform access to modern GPUs used in a wide variety of devices from PCs and consoles to mobile phones and embedded platforms."
+    url = "https://github.com/flayan/conan-vulkan"
+    homepage = "https://www.lunarg.com/vulkan-sdk/"
 
     # Indicates License type of the packaged library
     license = "MIT"
@@ -18,66 +18,74 @@ class LibnameConan(ConanFile):
     # Packages the license for the conanfile.py
     exports = ["LICENSE.md"]
 
-    # Remove following lines if the target lib does not use cmake.
-    exports_sources = ["CMakeLists.txt"]
-    generators = "cmake"
-
     # Options may need to change depending on the packaged library.
-    settings = "os", "arch", "compiler", "build_type"
+    settings = "os", "arch", "build_type"
     options = {"shared": [True, False], "fPIC": [True, False]}
-    default_options = "shared=False", "fPIC=True"
+    default_options = "shared=True", "fPIC=True"
 
     # Custom attributes for Bincrafters recipe conventions
     source_subfolder = "source_subfolder"
-    build_subfolder = "build_subfolder"
-
-    # Use version ranges for dependencies unless there's a reason not to
-    # Update 2/9/18 - Per conan team, ranges are slow to resolve.
-    # So, with libs like zlib, updates are very rare, so we now use static version
-
-
-    requires = (
-        "OpenSSL/[>=1.0.2l]@conan/stable",
-        "zlib/1.2.11@conan/stable"
-    )
 
     def config_options(self):
         if self.settings.os == 'Windows':
             del self.options.fPIC
 
     def source(self):
-        source_url = "https://github.com/libauthor/libname"
-        tools.get("{0}/archive/v{1}.tar.gz".format(source_url, self.version))
-        extracted_dir = self.name + "-" + self.version
+        source_url = "https://vulkan.lunarg.com/sdk/download"
+        if self.settings.os == 'Windows':
+            tools.download("{0}/{1}/windows/VulkanSDK-{1}-Installer.exe".format(source_url, self.version), "VulkanSDK.exe")
+            self.run("VulkanSDK.exe /S")
+            os.rename("c:/VulkanSDK/{0}".format(self.version), self.source_subfolder)
 
-        #Rename to "source_subfolder" is a convention to simplify later steps
-        os.rename(extracted_dir, self.source_subfolder)
+    def get_lib_folder(self):
+        if self.settings.os == 'Windows':
+            if self.settings.arch == 'x86':
+                if self.settings.build_type == 'Release':
+                    return os.path.join(self.source_subfolder, "Lib32")
+                else:
+                    return os.path.join(self.source_subfolder, "Source/lib32")
+            else:
+                if self.settings.build_type == 'Release':
+                    return os.path.join(self.source_subfolder, "Lib")
+                else:
+                    return os.path.join(self.source_subfolder, "Source/lib")
 
-    def configure_cmake(self):
-        cmake = CMake(self)
-        cmake.definitions["BUILD_TESTS"] = False # example
-        if self.settings.os != 'Windows':
-            cmake.definitions['CMAKE_POSITION_INDEPENDENT_CODE'] = self.options.fPIC
-        cmake.configure(build_folder=self.build_subfolder)
-        return cmake
-
-    def build(self):
-        cmake = self.configure_cmake()
-        cmake.build()
+    def get_bin_folder(self):
+        if self.settings.os == 'Windows':
+            if self.settings.arch == 'x86':
+                return os.path.join(self.source_subfolder, "Bin32")
+            else:
+                return os.path.join(self.source_subfolder, "Bin")
 
     def package(self):
-        self.copy(pattern="LICENSE", dst="licenses", src=self.source_subfolder)
-        cmake = self.configure_cmake()
-        cmake.install()
-        # If the CMakeLists.txt has a proper install method, the steps below may be redundant
-        # If so, you can just remove the lines below
-        include_folder = os.path.join(self.source_subfolder, "include")
-        self.copy(pattern="*", dst="include", src=include_folder)
-        self.copy(pattern="*.dll", dst="bin", keep_path=False)
-        self.copy(pattern="*.lib", dst="lib", keep_path=False)
-        self.copy(pattern="*.a", dst="lib", keep_path=False)
-        self.copy(pattern="*.so*", dst="lib", keep_path=False)
-        self.copy(pattern="*.dylib", dst="lib", keep_path=False)
+        self.copy(pattern="LICENSE.txt", dst="licenses", src=self.source_subfolder)
+
+        include_folder = os.path.join(self.source_subfolder, "Include/vulkan")
+        
+        self.copy(pattern="*", dst="include/vulkan", src=include_folder)
+
+        lib_folder = self.get_lib_folder()
+        if self.options.shared:
+            if self.settings.os == 'Windows':
+                bin_folder = self.get_bin_folder()
+                if self.settings.build_type == 'Release':
+                    self.copy(pattern="*.dll", dst="bin", src=bin_folder, keep_path=False)
+                    self.copy(pattern="*.json", dst="bin", src=bin_folder, keep_path=False)
+                    self.copy(pattern="*", dst="lib", src=lib_folder, keep_path=False)
+                else:
+                    self.copy(pattern="*.dll", dst="bin", src=bin_folder, keep_path=False)
+                    self.copy(pattern="*.json", dst="bin", src=bin_folder, keep_path=False)
+                    self.copy(pattern="*.lib", dst="lib", src=lib_folder, keep_path=False)
+                    self.copy(pattern="*.pdb", dst="lib", src=lib_folder, keep_path=False)
+                os.remove(os.path.join(self.package_folder, 'lib', 'VKstatic.1.lib'))
+                os.remove(os.path.join(self.package_folder, 'lib', 'shaderc_combined.lib'))
+        else:
+            if self.settings.os == 'Windows':
+                self.copy(pattern="VKstatic.1.lib", dst="lib", src=lib_folder, keep_path=False)
+
+        # self.copy(pattern="*.a", dst="lib", keep_path=False)
+        # self.copy(pattern="*.so*", dst="lib", keep_path=False)
+        # self.copy(pattern="*.dylib", dst="lib", keep_path=False)
 
     def package_info(self):
-        self.cpp_info.libs = tools.collect_libs(self)
+        self.cpp_info.libs = ["vulkan-1"]
