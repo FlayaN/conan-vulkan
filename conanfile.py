@@ -7,7 +7,7 @@ import os
 
 class VulkanConan(ConanFile):
     name = "vulkan"
-    version = "1.1.73.0"
+    version = "1.1.126.0"
     description = "Vulkan is a new generation graphics and compute API that provides high-efficiency, cross-platform access to modern GPUs used in a wide variety of devices from PCs and consoles to mobile phones and embedded platforms."
     url = "https://github.com/flayan/conan-vulkan"
     homepage = "https://www.lunarg.com/vulkan-sdk/"
@@ -21,7 +21,7 @@ class VulkanConan(ConanFile):
     # Options may need to change depending on the packaged library.
     settings = "os", "arch", "build_type"
     options = {"shared": [True, False], "fPIC": [True, False]}
-    default_options = "shared=True", "fPIC=True"
+    default_options = "shared=False", "fPIC=True"
 
     # Custom attributes for Bincrafters recipe conventions
     source_subfolder = "source_subfolder"
@@ -40,15 +40,9 @@ class VulkanConan(ConanFile):
     def get_lib_folder(self):
         if self.settings.os == 'Windows':
             if self.settings.arch == 'x86':
-                if self.settings.build_type == 'Release':
-                    return os.path.join(self.source_subfolder, "Lib32")
-                else:
-                    return os.path.join(self.source_subfolder, "Source/lib32")
+                return os.path.join(self.source_subfolder, "Lib32")
             else:
-                if self.settings.build_type == 'Release':
-                    return os.path.join(self.source_subfolder, "Lib")
-                else:
-                    return os.path.join(self.source_subfolder, "Source/lib")
+                return os.path.join(self.source_subfolder, "Lib")
 
     def get_bin_folder(self):
         if self.settings.os == 'Windows':
@@ -60,14 +54,14 @@ class VulkanConan(ConanFile):
     def package(self):
         self.copy(pattern="LICENSE.txt", dst="licenses", src=self.source_subfolder)
 
-        include_folder = os.path.join(self.source_subfolder, "Include/vulkan")
+        include_folder = os.path.join(self.source_subfolder, "Include")
         
-        self.copy(pattern="*", dst="include/vulkan", src=include_folder)
+        self.copy(pattern="*", dst="include", src=include_folder)
 
         lib_folder = self.get_lib_folder()
+        bin_folder = self.get_bin_folder()
         if self.options.shared:
             if self.settings.os == 'Windows':
-                bin_folder = self.get_bin_folder()
                 if self.settings.build_type == 'Release':
                     self.copy(pattern="*.dll", dst="bin", src=bin_folder, keep_path=False)
                     self.copy(pattern="*.json", dst="bin", src=bin_folder, keep_path=False)
@@ -77,12 +71,12 @@ class VulkanConan(ConanFile):
                     self.copy(pattern="*.json", dst="bin", src=bin_folder, keep_path=False)
                     self.copy(pattern="*.lib", dst="lib", src=lib_folder, keep_path=False)
                     self.copy(pattern="*.pdb", dst="lib", src=lib_folder, keep_path=False)
-                os.remove(os.path.join(self.package_folder, 'lib', 'VKstatic.1.lib'))
-                os.remove(os.path.join(self.package_folder, 'lib', 'shaderc_combined.lib'))
         else:
             if self.settings.os == 'Windows':
-                self.copy(pattern="VKstatic.1.lib", dst="lib", src=lib_folder, keep_path=False)
-
+                if self.settings.build_type == 'Debug':
+                    self.copy(pattern="*.pdb", dst="lib", src=lib_folder, keep_path=False)
+                self.copy(pattern="*.lib", dst="lib", src=lib_folder, keep_path=False)
+        self.copy(pattern="*.exe", dst="tools", src=bin_folder, keep_path=False)
         # self.copy(pattern="*.a", dst="lib", keep_path=False)
         # self.copy(pattern="*.so*", dst="lib", keep_path=False)
         # self.copy(pattern="*.dylib", dst="lib", keep_path=False)
